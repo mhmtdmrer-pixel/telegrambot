@@ -12,21 +12,27 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def get_price(symbol):
-    """USD/TRY, EUR/TRY gibi döviz fiyatını almak için"""
+# --- 1) Frankfurter API ile USD/EUR fiyatları ---
+def get_fx_rate(symbol):
+    # Örnek: symbol = "USD", "EUR"
+    url = f"https://api.frankfurter.app/latest?from={symbol}&to=TRY"
+    r = requests.get(url)
+    data = r.json()
+    return data["rates"]["TRY"]
+
+
+# --- 2) GoldAPI ile altın / gümüş gram fiyatı ---
+def get_metal_price(symbol):
     url = f"https://www.goldapi.io/api/{symbol}/TRY"
     r = requests.get(url, headers=HEADERS)
-    r.raise_for_status()
     data = r.json()
-    return data["price"]
 
-def get_metal_price(metal):
-    """XAU (altın) ve XAG (gümüş) gram fiyatını almak için"""
-    url = f"https://www.goldapi.io/api/{metal}/TRY"
-    r = requests.get(url, headers=HEADERS)
-    r.raise_for_status()
-    data = r.json()
-    return data["price_gram_24k"]
+    if "price_gram_24k" in data:
+        return data["price_gram_24k"]
+    else:
+        print("GoldAPI Hatası:", data)
+        return None
+
 
 def generate_chart(usd, eur, altin, gumus):
     labels = ['USD', 'EUR', 'Altın', 'Gümüş']
@@ -39,12 +45,17 @@ def generate_chart(usd, eur, altin, gumus):
     plt.savefig("chart.png")
     plt.close()
 
+
 def main():
-    usd = get_price("USD")
-    eur = get_price("EUR")
+    # Döviz
+    usd = get_fx_rate("USD")
+    eur = get_fx_rate("EUR")
+
+    # Altın & Gümüş
     altin = get_metal_price("XAU")
     gumus = get_metal_price("XAG")
 
+    # Telegram
     bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
     text = f"""
@@ -64,6 +75,7 @@ Grafik hazırlanıyor...
 
     with open("chart.png", "rb") as img:
         bot.send_photo(TELEGRAM_CHAT_ID, img)
+
 
 if __name__ == "__main__":
     main()
