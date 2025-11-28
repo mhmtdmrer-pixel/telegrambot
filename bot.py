@@ -7,42 +7,52 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-# TradingView / Binance API fiyat çekici
-def get_price(symbol):
+
+# 1) Frankfurter API — Döviz fiyatları
+def get_fx_rate(base, target="TRY"):
+    url = f"https://api.frankfurter.app/latest?from={base}&to={target}"
+    r = requests.get(url)
+    data = r.json()
+    return float(data["rates"][target])
+
+
+# 2) TradingView (Binance proxy) — XAUUSD & XAGUSD
+def get_commodity_price(symbol):
     url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
     r = requests.get(url)
     data = r.json()
+
+    if "price" not in data:
+        raise ValueError(f"API 'price' döndürmedi: {data}")
+
     return float(data["price"])
+
 
 def main():
     # Döviz
-    usd_try = get_price("USDTRY")
-    eur_try = get_price("EURTRY")
+    usdtry = get_fx_rate("USD")
+    eurtry = get_fx_rate("EUR")
 
-    # XAUUSD ve XAGUSD dolar fiyatları
-    xau_usd = get_price("XAUUSD")
-    xag_usd = get_price("XAGUSD")
+    # Ons Altın & Ons Gümüş (USD)
+    xauusd = get_commodity_price("XAUUSD")
+    xagusd = get_commodity_price("XAGUSD")
 
     # Gram Altın & Gram Gümüş
-    gram_altin = (xau_usd / usd_try) / 31.103
-    gram_gumus = (xag_usd / usd_try) / 31.103
+    gram_altin = round((xauusd / usdtry) / 31.103, 2)
+    gram_gumus = round((xagusd / usdtry) / 31.103, 2)
 
-    # Yuvarlama
-    gram_altin = round(gram_altin, 2)
-    gram_gumus = round(gram_gumus, 2)
-    usd_try = round(usd_try, 3)
-    eur_try = round(eur_try, 3)
-
+    # Mesaj metni
     text = f"""
 📊 Günlük Finans Özeti
 
-💵 USD/TRY: {usd_try}
-💶 EUR/TRY: {eur_try}
+💵 USD/TRY: {round(usdtry, 3)}
+💶 EUR/TRY: {round(eurtry, 3)}
 🥇 Gram Altın: {gram_altin} TL
 🥈 Gram Gümüş: {gram_gumus} TL
 """
 
     bot.send_message(TELEGRAM_CHAT_ID, text)
+
 
 if __name__ == "__main__":
     main()
