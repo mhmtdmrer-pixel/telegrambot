@@ -3,87 +3,67 @@ import requests
 import matplotlib.pyplot as plt
 import telebot
 
-# Fiyatları alma
-def get_prices():
-    url_xau = "https://www.goldapi.io/api/XAU/TRY"
-    url_xag = "https://www.goldapi.io/api/XAG/TRY"
+GOLDAPI_KEY = os.getenv("GOLDAPI_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-    headers = {
-        "x-access-token": os.getenv("GOLDAPI_KEY"),
-        "Content-Type": "application/json"
-    }
+HEADERS = {
+    "x-access-token": GOLDAPI_KEY,
+    "Content-Type": "application/json"
+}
 
-    # Altın
-    r1 = requests.get(url_xau, headers=headers)
-    r1.raise_for_status()
-    data_xau = r1.json()
+def get_price(symbol):
+    """USD/TRY, EUR/TRY gibi döviz fiyatını almak için"""
+    url = f"https://www.goldapi.io/api/{symbol}/TRY"
+    r = requests.get(url, headers=HEADERS)
+    r.raise_for_status()
+    data = r.json()
+    return data["price"]
 
-    # Gümüş
-    r2 = requests.get(url_xag, headers=headers)
-    r2.raise_for_status()
-    data_xag = r2.json()
+def get_metal_price(metal):
+    """XAU (altın) ve XAG (gümüş) gram fiyatını almak için"""
+    url = f"https://www.goldapi.io/api/{metal}/TRY"
+    r = requests.get(url, headers=HEADERS)
+    r.raise_for_status()
+    data = r.json()
+    return data["price_gram_24k"]
 
-    usd_try = data_xau["exchange_rate"]["USD"]
-    eur_try = data_xau["exchange_rate"]["EUR"]
-
-    gram_altin = data_xau["price_gram_24k"]
-    gram_gumus = data_xag["price_gram_24k"]
-
-    return usd_try, eur_try, gram_altin, gram_gumus
-
-
-# Telegram mesaj gönderme
-def send_telegram_message(text):
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    bot = telebot.TeleBot(token)
-    bot.send_message(chat_id, text)
-
-
-# Görsel üretme
 def generate_chart(usd, eur, altin, gumus):
-    labels = ['USD', 'EUR', 'Altın (24K)', 'Gümüş']
+    labels = ['USD', 'EUR', 'Altın', 'Gümüş']
     values = [usd, eur, altin, gumus]
 
     plt.figure(figsize=(6,4))
     plt.bar(labels, values)
-    plt.title("Günlük Fiyat Özeti")
+    plt.title("Günlük Finans Özeti")
     plt.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
-
-# Telegram görsel gönderme
-def send_telegram_image():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    bot = telebot.TeleBot(token)
-    with open("chart.png", "rb") as img:
-        bot.send_photo(chat_id, img)
-
-
-# Ana
 def main():
-    usd, eur, altin, gumus = get_prices()
+    usd = get_price("USD")
+    eur = get_price("EUR")
+    altin = get_metal_price("XAU")
+    gumus = get_metal_price("XAG")
+
+    bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
     text = f"""
 📊 Günlük Finans Özeti
 
 💵 USD/TRY: {usd}
 💶 EUR/TRY: {eur}
-🥇 Gram Altın: {altin} TL
-🥈 Gram Gümüş: {gumus} TL
+🥇 Gram Altın (XAU): {altin}
+🥈 Gram Gümüş (XAG): {gumus}
 
-Grafik hazırlanıyor ve birazdan gönderiliyor.
+Grafik hazırlanıyor...
 """
 
-    send_telegram_message(text)
+    bot.send_message(TELEGRAM_CHAT_ID, text)
 
     generate_chart(usd, eur, altin, gumus)
-    send_telegram_image()
 
+    with open("chart.png", "rb") as img:
+        bot.send_photo(TELEGRAM_CHAT_ID, img)
 
 if __name__ == "__main__":
     main()
