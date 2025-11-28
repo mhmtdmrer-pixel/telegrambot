@@ -1,54 +1,39 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 import telebot
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 
-# 1) Frankfurter API — Döviz fiyatları
-def get_fx_rate(base, target="TRY"):
-    url = f"https://api.frankfurter.app/latest?from={base}&to={target}"
-    r = requests.get(url)
-    data = r.json()
-    return float(data["rates"][target])
-
-
-# 2) TradingView (Binance proxy) — XAUUSD & XAGUSD
-def get_commodity_price(symbol):
-    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-    r = requests.get(url)
-    data = r.json()
-
-    if "price" not in data:
-        raise ValueError(f"API 'price' döndürmedi: {data}")
-
-    return float(data["price"])
+def google_price(query):
+    q = query.replace(" ", "+")
+    url = f"https://www.google.com/search?q={q}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    r = requests.get(url, headers=headers)
+    soup = BeautifulSoup(r.text, "html.parser")
+    result = soup.find("span", class_="pclqee")
+    if result:
+        return float(result.text.replace(",", "."))
+    else:
+        return None
 
 
 def main():
-    # Döviz
-    usdtry = get_fx_rate("USD")
-    eurtry = get_fx_rate("EUR")
+    usd = google_price("usd try")
+    eur = google_price("eur try")
+    altin = google_price("gram altın fiyatı")
+    gumus = google_price("gram gümüş fiyatı")
 
-    # Ons Altın & Ons Gümüş (USD)
-    xauusd = get_commodity_price("XAUUSD")
-    xagusd = get_commodity_price("XAGUSD")
-
-    # Gram Altın & Gram Gümüş
-    gram_altin = round((xauusd / usdtry) / 31.103, 2)
-    gram_gumus = round((xagusd / usdtry) / 31.103, 2)
-
-    # Mesaj metni
     text = f"""
-📊 Günlük Finans Özeti
+📊 Günlük Finans Özeti (API YOK — Stabil Sistem)
 
-💵 USD/TRY: {round(usdtry, 3)}
-💶 EUR/TRY: {round(eurtry, 3)}
-🥇 Gram Altın: {gram_altin} TL
-🥈 Gram Gümüş: {gram_gumus} TL
+💵 USD/TRY: {usd}
+💶 EUR/TRY: {eur}
+🥇 Gram Altın: {altin}
+🥈 Gram Gümüş: {gumus}
 """
 
     bot.send_message(TELEGRAM_CHAT_ID, text)
